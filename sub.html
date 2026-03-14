@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Speed Runner</title>
+
+<style>
+body{
+margin:0;
+overflow:hidden;
+font-family:Arial;
+background:#111;
+}
+
+canvas{
+display:block;
+margin:auto;
+background:#222;
+}
+
+#menu{
+position:absolute;
+top:40%;
+width:100%;
+text-align:center;
+color:white;
+}
+
+button{
+padding:15px 30px;
+font-size:20px;
+border:none;
+border-radius:10px;
+background:#00c3ff;
+color:white;
+cursor:pointer;
+}
+
+#hud{
+position:absolute;
+top:10px;
+left:10px;
+color:white;
+font-size:20px;
+}
+
+#gameover{
+display:none;
+position:absolute;
+top:40%;
+width:100%;
+text-align:center;
+color:white;
+}
+</style>
+
+</head>
+
+<body>
+
+<div id="menu">
+<h1>Speed Runner</h1>
+<button onclick="startGame()">Play</button>
+</div>
+
+<div id="hud">
+Score: <span id="score">0</span>  
+Coins: <span id="coins">0</span>
+</div>
+
+<div id="gameover">
+<h1>Game Over</h1>
+<button onclick="restart()">Restart</button>
+</div>
+
+<canvas id="game"></canvas>
+
+<script>
+
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+let lanes=[-150,0,150]
+let lane=1
+
+let player={
+x:0,
+y:0,
+width:50,
+height:80,
+jump:false,
+slide:false,
+vy:0
+}
+
+let obstacles=[]
+let coins=[]
+let speed=8
+let score=0
+let coinCount=0
+let playing=false
+
+function startGame(){
+document.getElementById("menu").style.display="none"
+playing=true
+gameLoop()
+}
+
+function restart(){
+location.reload()
+}
+
+function spawnObstacle(){
+let laneIndex=Math.floor(Math.random()*3)
+
+obstacles.push({
+lane:laneIndex,
+z:1000,
+width:60,
+height:80
+})
+}
+
+function spawnCoin(){
+let laneIndex=Math.floor(Math.random()*3)
+
+coins.push({
+lane:laneIndex,
+z:1000,
+size:20
+})
+}
+
+setInterval(spawnObstacle,1200)
+setInterval(spawnCoin,800)
+
+function drawPlayer(){
+
+ctx.fillStyle="cyan"
+
+ctx.fillRect(
+canvas.width/2 + lanes[lane]-25,
+canvas.height-150-player.y,
+player.width,
+player.height
+)
+}
+
+function drawObstacles(){
+
+ctx.fillStyle="red"
+
+for(let o of obstacles){
+
+let scale=300/o.z
+let x=canvas.width/2 + lanes[o.lane]*scale
+let y=canvas.height-200
+
+ctx.fillRect(x,y,o.width*scale,o.height*scale)
+
+o.z-=speed
+
+if(o.z<50 && o.lane===lane && !player.jump){
+gameOver()
+}
+
+}
+
+obstacles=obstacles.filter(o=>o.z>0)
+}
+
+function drawCoins(){
+
+ctx.fillStyle="gold"
+
+for(let c of coins){
+
+let scale=300/c.z
+let x=canvas.width/2 + lanes[c.lane]*scale
+let y=canvas.height-250
+
+ctx.beginPath()
+ctx.arc(x,y,c.size*scale,0,Math.PI*2)
+ctx.fill()
+
+c.z-=speed
+
+if(c.z<80 && c.lane===lane){
+coinCount++
+document.getElementById("coins").innerText=coinCount
+c.z=0
+}
+
+}
+
+coins=coins.filter(c=>c.z>0)
+
+}
+
+function update(){
+
+if(player.jump){
+player.vy+=1
+player.y+=player.vy
+
+if(player.y>=0){
+player.jump=false
+player.y=0
+player.vy=0
+}
+}
+
+speed+=0.002
+score+=1
+
+document.getElementById("score").innerText=score
+}
+
+function drawRoad(){
+
+ctx.fillStyle="#333"
+
+ctx.fillRect(canvas.width/2-200,0,400,canvas.height)
+
+ctx.strokeStyle="white"
+
+for(let i=1;i<3;i++){
+
+ctx.beginPath()
+ctx.moveTo(canvas.width/2-200 + i*130,0)
+ctx.lineTo(canvas.width/2-200 + i*130,canvas.height)
+ctx.stroke()
+
+}
+
+}
+
+function gameLoop(){
+
+if(!playing) return
+
+ctx.clearRect(0,0,canvas.width,canvas.height)
+
+drawRoad()
+
+update()
+
+drawCoins()
+
+drawObstacles()
+
+drawPlayer()
+
+requestAnimationFrame(gameLoop)
+
+}
+
+function gameOver(){
+
+playing=false
+
+document.getElementById("gameover").style.display="block"
+
+let high=localStorage.getItem("highscore") || 0
+
+if(score>high){
+localStorage.setItem("highscore",score)
+}
+
+}
+
+document.addEventListener("keydown",(e)=>{
+
+if(e.key==="ArrowLeft" && lane>0) lane--
+
+if(e.key==="ArrowRight" && lane<2) lane++
+
+if(e.key==="ArrowUp" && !player.jump){
+player.jump=true
+player.vy=-20
+}
+
+})
+
+let startX=0
+let startY=0
+
+canvas.addEventListener("touchstart",(e)=>{
+startX=e.touches[0].clientX
+startY=e.touches[0].clientY
+})
+
+canvas.addEventListener("touchend",(e)=>{
+
+let dx=e.changedTouches[0].clientX-startX
+let dy=e.changedTouches[0].clientY-startY
+
+if(Math.abs(dx)>Math.abs(dy)){
+
+if(dx>50 && lane<2) lane++
+if(dx<-50 && lane>0) lane--
+
+}else{
+
+if(dy<-50 && !player.jump){
+player.jump=true
+player.vy=-20
+}
+
+}
+
+})
+
+</script>
+</body>
+</html>
